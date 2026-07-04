@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CERBERUS 2.0 — Cluster Command</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  :root{
+    --background:0 0% 10%; --foreground:0 0% 96%;
+    --primary:119 99% 46%; --primary-foreground:0 0% 4%;
+    --secondary:0 0% 18%; --muted:0 0% 16%; --muted-foreground:0 0% 60%;
+    --destructive:0 84% 60%; --warnclr:41 95% 58%;
+    --border:0 0% 20%; --nav-button:0 0% 18%; --hero-bg:0 0% 8%;
+    --radius:0.5rem;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:Sora,sans-serif;-webkit-font-smoothing:antialiased;
+    background:hsl(var(--hero-bg));color:hsl(var(--foreground));overflow-x:hidden}
+  a{color:inherit;text-decoration:none}
+  .grn{color:hsl(var(--primary))}
+  .mut{color:hsl(var(--muted-foreground))}
+  .up{color:hsl(var(--primary))}.down{color:hsl(var(--destructive))}.wn{color:hsl(var(--warnclr))}
+
+  /* keyframes */
+  @keyframes fade-up{0%{opacity:0;transform:translateY(20px);filter:blur(4px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}
+  @keyframes fade-in{0%{opacity:0}100%{opacity:1}}
+  @keyframes pulse-ring{0%{transform:scale(.95);opacity:.7}70%{transform:scale(1.25);opacity:0}100%{opacity:0}}
+  .fu{opacity:0;animation:fade-up .7s cubic-bezier(.16,1,.3,1) forwards}
+  .fi{opacity:0;animation:fade-in .6s ease-out forwards}
+  @media (prefers-reduced-motion: reduce){.fu,.fi{animation:none;opacity:1}}
+
+  /* navbar */
+  nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+    padding:16px 24px;backdrop-filter:blur(10px);background:hsl(var(--hero-bg) / .55);border-bottom:1px solid hsl(var(--border) / .6)}
+  .logo{font-size:20px;font-weight:600;letter-spacing:-.02em}
+  .navlinks{display:none;gap:30px}
+  .navlinks a{font-size:12px;text-transform:uppercase;letter-spacing:.18em;color:hsl(var(--muted-foreground));transition:color .2s}
+  .navlinks a:hover{color:hsl(var(--foreground))}
+  .navright{display:flex;gap:10px;align-items:center}
+  .pill{padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;
+    border:1px solid hsl(var(--border));white-space:nowrap}
+  .pill.live{background:hsl(var(--primary) / .14);color:hsl(var(--primary));border-color:hsl(var(--primary) / .4)}
+  .pill.demo{background:hsl(var(--warnclr) / .14);color:hsl(var(--warnclr));border-color:hsl(var(--warnclr) / .4)}
+  .pill.off{background:hsl(var(--destructive) / .14);color:hsl(var(--destructive));border-color:hsl(var(--destructive) / .45)}
+  .btn{padding:9px 18px;border-radius:8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;
+    background:hsl(var(--nav-button));color:hsl(var(--foreground));border:1px solid hsl(var(--border));cursor:pointer;transition:all .2s}
+  .btn:hover{background:hsl(var(--nav-button) / .7)}.btn:active{transform:scale(.97)}
+  @media(min-width:900px){.navlinks{display:flex}}
+
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px}
+  section{padding:0 0 26px}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.32em;color:hsl(var(--muted-foreground))}
+
+  /* hero */
+  .hero{min-height:100vh;display:flex;align-items:center;padding-top:96px;position:relative;background:
+    radial-gradient(900px 500px at 78% 18%,hsl(119 99% 46% / .07) 0,transparent 60%),transparent}
+  .herogrid{display:grid;grid-template-columns:1fr;gap:30px;width:100%}
+  @media(min-width:1000px){.herogrid{grid-template-columns:0.85fr 1.15fr;align-items:center}}
+  h1.title{font-size:clamp(2.6rem,7vw,5rem);font-weight:700;line-height:1.04;letter-spacing:-.05em;text-transform:uppercase;margin:10px 0}
+  .lead{font-size:clamp(1rem,2vw,1.5rem);font-weight:300;color:hsl(var(--foreground) / .8);margin-bottom:8px}
+  .desc{font-size:clamp(.85rem,1.4vw,1.05rem);font-weight:300;color:hsl(var(--muted-foreground));margin-bottom:18px;max-width:46ch}
+
+  .statrow{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:440px}
+  .stat{background:hsl(var(--background) / .7);border:1px solid hsl(var(--border));border-radius:var(--radius);padding:13px 15px}
+  .stat .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:hsl(var(--muted-foreground))}
+  .stat .val{font-size:24px;font-weight:700;margin-top:3px;line-height:1.1}
+  .stat .val.sm{font-size:15px;font-weight:600}
+
+  /* routing panel */
+  .panel{background:linear-gradient(180deg,hsl(0 0% 11%),hsl(0 0% 7%));border:1px solid hsl(var(--border));
+    border-radius:16px;padding:14px;position:relative;overflow:hidden}
+  .panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:hsl(var(--muted-foreground));margin-bottom:6px;display:flex;justify-content:space-between}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:hsl(var(--muted-foreground));margin-top:6px;text-transform:uppercase;letter-spacing:.08em}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  svg{width:100%;height:auto;display:block}
+
+  /* generic cards grid */
+  .cards{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:980px){.g3,.g4{grid-template-columns:1fr 1fr}}
+  @media(max-width:620px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,hsl(0 0% 11%),hsl(0 0% 8%));border:1px solid hsl(var(--border));border-radius:14px;padding:16px}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:hsl(var(--muted-foreground));margin-bottom:12px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin:30px 0 14px}
+  .sec-head h2{font-size:clamp(1.1rem,2.4vw,1.6rem);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+
+  .kv{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed hsl(var(--border));font-size:13.5px}
+  .kv:last-child{border-bottom:0}.kv b{font-weight:600}
+  .big{font-size:30px;font-weight:700;line-height:1}
+  .big small{font-size:13px;color:hsl(var(--muted-foreground));font-weight:500}
+
+  /* fsm chips */
+  .fsm{display:flex;gap:10px;flex-wrap:wrap}
+  .chip{flex:1;min-width:90px;text-align:center;padding:12px 8px;border-radius:10px;border:1px solid hsl(var(--border));
+    background:hsl(0 0% 12%);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:hsl(var(--muted-foreground));transition:all .3s}
+  .chip small{display:block;font-size:9.5px;letter-spacing:.12em;margin-top:3px;opacity:.7}
+  .chip.on-ok{background:hsl(var(--primary) / .16);color:hsl(var(--primary));border-color:hsl(var(--primary) / .5);box-shadow:0 0 22px hsl(119 99% 46% /.18)}
+  .chip.on-wn{background:hsl(var(--warnclr) / .16);color:hsl(var(--warnclr));border-color:hsl(var(--warnclr) / .5);box-shadow:0 0 22px hsl(41 95% 58% /.18)}
+  .chip.on-bad{background:hsl(var(--destructive) / .16);color:hsl(var(--destructive));border-color:hsl(var(--destructive) / .55);box-shadow:0 0 22px hsl(0 84% 60% /.18)}
+  .arrow{align-self:center;color:hsl(var(--muted-foreground));font-size:18px}
+
+  .badge{display:inline-block;padding:2px 9px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+  .b-ok{background:hsl(var(--primary) / .16);color:hsl(var(--primary))}
+  .b-wn{background:hsl(var(--warnclr) / .16);color:hsl(var(--warnclr))}
+  .b-bad{background:hsl(var(--destructive) / .16);color:hsl(var(--destructive))}
+  .b-mut{background:hsl(0 0% 22%);color:hsl(var(--muted-foreground))}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:10px 8px;border-bottom:1px solid hsl(var(--border));text-align:left}
+  th{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:hsl(var(--primary))}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .dot.ok{background:hsl(var(--primary))}.dot.bad{background:hsl(var(--destructive))}.dot.wn{background:hsl(var(--warnclr))}
+
+  .log{height:170px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:hsl(0 0% 80%)}
+  .log div{padding:3px 0;border-bottom:1px solid hsl(0 0% 14%)}
+  .log .l-bad{color:hsl(var(--destructive))}.log .l-wn{color:hsl(var(--warnclr))}.log .l-ok{color:hsl(var(--primary))}
+  canvas{max-height:240px}
+  footer{border-top:1px solid hsl(var(--border));margin-top:24px;padding:20px 0 40px;color:hsl(var(--muted-foreground));font-size:12px;text-align:center;line-height:1.7}
+
+  #glow{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(1100px 620px at 80% 12%,hsl(119 99% 46% / .10),transparent 62%),
+               radial-gradient(820px 520px at 8% 92%,hsl(119 99% 46% / .05),transparent 60%)}
+  #bg{position:fixed;inset:0;z-index:0;display:block}
+  .hero,.wrap{position:relative}
+  .hero,.wrap{z-index:1}
+</style>
+</head>
+<body>
+<div id="glow"></div>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<nav>
+  <div class="logo">CERBERUS <span class="grn">2.0</span></div>
+  <div class="navlinks">
+    <a href="#routing">Routing</a>
+    <a href="#states">States</a>
+    <a href="#sensors">Sensors</a>
+    <a href="#nodes">Nodes</a>
+    <a href="#log">Log</a>
+  </div>
+  <div class="navright">
+    <span class="pill off" id="connPill">Connecting</span>
+    <button class="btn" id="demoBtn">Demo</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap herogrid">
+    <div>
+      <div class="eyebrow fu" style="animation-delay:.15s">Server-room monitoring cluster</div>
+      <h1 class="title fu" style="animation-delay:.25s">Cluster<br>Command</h1>
+      <p class="lead fu" style="animation-delay:.4s">Three nodes. <span class="grn">No single point of failure.</span></p>
+      <p class="desc fu" style="animation-delay:.5s">Live telemetry from an ESP-NOW mesh — ranked failover, self-healing, backup sensing, and an offline fallback. Watch the data path re-route in real time.</p>
+      <div class="statrow fu" style="animation-delay:.62s">
+        <div class="stat"><div class="lbl">Cluster Health</div><div class="val" id="h_health">--</div></div>
+        <div class="stat"><div class="lbl">Leader</div><div class="val" id="h_leader">--</div></div>
+        <div class="stat"><div class="lbl">Active Source</div><div class="val sm" id="h_src">--</div></div>
+        <div class="stat"><div class="lbl">Mode</div><div class="val sm" id="h_mode">--</div></div>
+      </div>
+    </div>
+
+    <div class="panel fu" id="routing" style="animation-delay:.45s">
+      <h3><span>Live routing &amp; mesh</span><span id="r_uptime" class="mut">--</span></h3>
+      <svg id="mesh" viewBox="0 0 560 430" role="img" aria-label="Live routing graph">
+        <defs>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g id="edges"></g>
+        <g id="nodes"></g>
+        <g id="flow"></g>
+      </svg>
+      <div class="legend">
+        <span><i style="background:hsl(119,99%,46%)"></i>Active path</span>
+        <span><i style="background:hsl(119,40%,42%)"></i>Link up</span>
+        <span><i style="background:hsl(0,0%,42%)"></i>Link down</span>
+        <span><i style="background:hsl(41,95%,58%)"></i>Reported (A↔B)</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+
+  <!-- STATES -->
+  <div class="sec-head" id="states"><span class="eyebrow">01</span><h2>Health &amp; fallback states</h2></div>
+  <div class="cards g2">
+    <div class="card">
+      <h2>Cluster health (FSM)</h2>
+      <div class="fsm">
+        <div class="chip" id="st_ok">OK<small>3 nodes</small></div>
+        <span class="arrow">→</span>
+        <div class="chip" id="st_deg">Degraded<small>2 nodes</small></div>
+        <span class="arrow">→</span>
+        <div class="chip" id="st_crit">Critical<small>1 node</small></div>
+      </div>
+      <div style="margin-top:16px" class="kv"><span>Active sensor source</span><b id="s_src">--</b></div>
+      <div class="kv"><span>Vibration / tilt validity</span><b id="s_vibval">--</b></div>
+    </div>
+    <div class="card">
+      <h2>Dashboard mode (fallback)</h2>
+      <div class="fsm">
+        <div class="chip" id="md_net">Internet<small>cloud live</small></div>
+        <span class="arrow">⇄</span>
+        <div class="chip" id="md_local">Local fallback<small>SoftAP only</small></div>
+      </div>
+      <div style="margin-top:16px" class="kv"><span>Phone hotspot</span><b id="s_sta">--</b></div>
+      <div class="kv"><span>Internet IP</span><b id="s_staip">--</b></div>
+      <div class="kv"><span>Shared Wi-Fi channel</span><b id="s_ch">--</b></div>
+    </div>
+  </div>
+
+  <!-- SENSORS -->
+  <div class="sec-head" id="sensors"><span class="eyebrow">02</span><h2>Sensor telemetry</h2></div>
+  <div class="cards g4" style="margin-bottom:14px">
+    <div class="card"><h2>Temperature</h2><div class="big"><span id="m_temp">--</span><small> °C</small></div></div>
+    <div class="card"><h2>Humidity</h2><div class="big"><span id="m_hum">--</span><small> %</small></div></div>
+    <div class="card"><h2>Vibration</h2><div class="big"><span id="m_vib">--</span></div><div class="wn" id="m_vibstale" style="font-size:11px;margin-top:4px"></div></div>
+    <div class="card"><h2>Tilt</h2><div class="big"><span id="m_tilt">--</span><small> °</small></div></div>
+  </div>
+  <div class="cards g4" style="margin-bottom:14px">
+    <div class="card"><h2>Light</h2><div class="big" style="font-size:22px" id="m_light">--</div></div>
+    <div class="card"><h2>LDR (raw)</h2><div class="big" style="font-size:22px" id="m_ldr">--</div></div>
+    <div class="card"><h2>Motion alert</h2><div id="m_motion">--</div></div>
+    <div class="card"><h2>Environment alert</h2><div id="m_env">--</div></div>
+  </div>
+  <div class="cards g2">
+    <div class="card"><h2>Temperature &amp; humidity — trend</h2><canvas id="envChart"></canvas></div>
+    <div class="card"><h2>Vibration — trend</h2><canvas id="vibChart"></canvas></div>
+  </div>
+
+  <!-- NODES -->
+  <div class="sec-head" id="nodes"><span class="eyebrow">03</span><h2>Nodes &amp; links</h2></div>
+  <div class="cards g2">
+    <div class="card">
+      <h2>Node status</h2>
+      <table><thead><tr><th>Node</th><th>Role</th><th>State</th><th>Alive</th><th>RSSI</th><th>Uptime</th></tr></thead>
+      <tbody id="nodeTable"></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Mesh links</h2>
+      <div class="kv"><span>A ↔ C <span class="mut">(measured)</span></span><b id="l_ac">--</b></div>
+      <div class="kv"><span>B ↔ C <span class="mut">(measured)</span></span><b id="l_bc">--</b></div>
+      <div class="kv"><span>A ↔ B <span class="mut">(reported)</span></span><b id="l_ab">--</b></div>
+      <div class="kv"><span>C → output</span><b id="l_out">--</b></div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="sec-head" id="log"><span class="eyebrow">04</span><h2>Event &amp; alert log</h2></div>
+  <div class="card"><div class="log" id="logBox"></div></div>
+
+  <footer>
+    The cloud dashboard shows the last data received from Node C. If Node C loses internet, live updates pause — Node C is the
+    only gateway — while the local SoftAP dashboard keeps working. Link A↔C and B↔C are measured by Node C; A↔B is reported by
+    nodes A and B.<br>CERBERUS 2.0 · fault-tolerant edge monitoring · FSM-controlled
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   Firebase config — cerberus-cluster
+   Firebase console → Project settings → Your apps → Web app.
+   If left as placeholders, the dashboard runs in DEMO mode.
+   ============================================================ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyD5mvDMTr8E_ghp2EuFqnRJAcs3TBG2B2I",
+  authDomain:        "cerberus-cluster.firebaseapp.com",
+  databaseURL:       "https://cerberus-cluster-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "cerberus-cluster",
+  storageBucket:     "cerberus-cluster.firebasestorage.app",
+  messagingSenderId: "443951372694",
+  appId:             "1:443951372694:web:0f668c2325cfe123b5a5b7"
+};
+
+const $=id=>document.getElementById(id);
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function fmt(s){s=Number(s||0);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return [h,m,x].map(n=>String(n).padStart(2,'0')).join(':');}
+
+/* ---------- node geometry ---------- */
+const P = { A:{x:280,y:70}, B:{x:90,y:340}, C:{x:360,y:340}, OUT:{x:500,y:205} };
+let activePath=[]; // polyline of {x,y} for flowing dots
+
+function el(tag,attrs){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function edgeLine(a,b,color,width,dash,glow){
+  const l=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${color}" stroke-width="${width}" `+
+    `stroke-linecap="round" ${dash?`stroke-dasharray="7 7"`:''} ${glow?'filter="url(#glow)"':''}/>`;
+  return l;
+}
+function rssiWidth(r){ if(r==null)return 2; const v=Math.max(-95,Math.min(-40,r)); return 1.6+ (v+95)/55*3.6; }
+
+function drawMesh(d){
+  const links={}; (d.links||[]).forEach(l=>links[l.from+l.to]=l);
+  const nodeAlive={A:false,B:false,C:true};
+  (d.nodes||[]).forEach(n=>nodeAlive[n.id]=n.alive);
+  const srcId = d.sensors && d.sensors.sourceId ? d.sensors.sourceId : '-';
+  const net = d.dashboardMode==='INTERNET';
+
+  // which mesh edges are part of the active sensing path
+  const activeEdge = srcId==='A' ? 'AC' : srcId==='B' ? 'BC' : null;
+
+  // ----- edges -----
+  let e='';
+  const mesh=[['A','B','AB'],['A','C','AC'],['B','C','BC']];
+  mesh.forEach(([u,v,key])=>{
+    const lk=links[key]||links[v+u];
+    const up=lk?lk.up:(nodeAlive[u]&&nodeAlive[v]);
+    const rssi=lk?lk.rssi:null;
+    let color,width=rssiWidth(rssi),dash=false,glow=false;
+    if(key==='AB'){ color = up?'hsl(41,95%,58%)':'hsl(0,0%,38%)'; dash=true; }   // reported link
+    else if(!up){ color='hsl(0,0%,40%)'; dash=true; width=2; }
+    else if(key===activeEdge){ color='hsl(119,99%,46%)'; glow=true; width=Math.max(width,3.4);}
+    else color='hsl(119,40%,40%)';
+    e+=edgeLine(P[u],P[v],color,width,dash,glow);
+    // rssi label
+    if(up&&rssi!=null){const mx=(P[u].x+P[v].x)/2,my=(P[u].y+P[v].y)/2;
+      e+=`<text x="${mx}" y="${my-6}" fill="hsl(0,0%,55%)" font-size="11" text-anchor="middle">${rssi} dBm</text>`;}
+  });
+  // uplink C -> OUT
+  const outActive = (srcId!=='-');
+  e+=edgeLine(P.C,P.OUT, outActive?(net?'hsl(119,99%,46%)':'hsl(41,95%,58%)'):'hsl(0,0%,40%)',
+              outActive?3.4:2, !outActive, outActive);
+  $('edges').innerHTML=e;
+
+  // ----- nodes -----
+  const roleOf={A:'PRIMARY',B:'BACKUP',C:'GATEWAY'};
+  const stateOf={}; (d.nodes||[]).forEach(n=>stateOf[n.id]=n.alive?n.state:'DOWN');
+  let n='';
+  function node(id){
+    const pos=P[id], alive=nodeAlive[id], leader=(d.leader===id);
+    const stroke = !alive?'hsl(0,84%,60%)': leader?'hsl(48,95%,55%)':'hsl(119,99%,46%)';
+    const fill = alive?'hsl(0,0%,13%)':'hsl(0,12%,12%)';
+    let g='';
+    if(leader&&alive&&!reduceMotion){
+      g+=`<circle cx="${pos.x}" cy="${pos.y}" r="30" fill="none" stroke="hsl(48,95%,55%)" stroke-width="2" opacity="0.0"><animate attributeName="r" values="28;40" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0" dur="1.8s" repeatCount="indefinite"/></circle>`;
+    }
+    g+=`<circle cx="${pos.x}" cy="${pos.y}" r="28" fill="${fill}" stroke="${stroke}" stroke-width="2.5" ${alive?'filter="url(#glow)"':''}/>`;
+    g+=`<text x="${pos.x}" y="${pos.y+7}" fill="${alive?'#fff':'hsl(0,0%,55%)'}" font-size="22" font-weight="700" text-anchor="middle">${id}</text>`;
+    // role badge
+    g+=`<text x="${pos.x}" y="${pos.y+46}" fill="hsl(0,0%,68%)" font-size="10.5" font-weight="600" letter-spacing="1" text-anchor="middle">${roleOf[id]}</text>`;
+    // state
+    const stc = !alive?'hsl(0,84%,62%)': (stateOf[id]==='ACTIVE'||stateOf[id]==='STANDBY')?'hsl(119,80%,55%)':'hsl(41,95%,58%)';
+    g+=`<text x="${pos.x}" y="${pos.y+61}" fill="${stc}" font-size="10" font-weight="700" letter-spacing=".5" text-anchor="middle">${stateOf[id]||'?'}</text>`;
+    if(leader&&alive) g+=`<text x="${pos.x}" y="${pos.y-38}" fill="hsl(48,95%,58%)" font-size="10.5" font-weight="700" letter-spacing="1.5" text-anchor="middle">★ LEADER</text>`;
+    return g;
+  }
+  n+=node('A')+node('B')+node('C');
+  // OUT node (cloud / hotspot)
+  const oc = activePath.length? (net?'hsl(119,99%,46%)':'hsl(41,95%,58%)'):'hsl(0,0%,40%)';
+  n+=`<circle cx="${P.OUT.x}" cy="${P.OUT.y}" r="26" fill="hsl(0,0%,12%)" stroke="${oc}" stroke-width="2.2"/>`;
+  n+=`<text x="${P.OUT.x}" y="${P.OUT.y+8}" font-size="20" text-anchor="middle">${net?'☁':'📡'}</text>`;
+  n+=`<text x="${P.OUT.x}" y="${P.OUT.y+44}" fill="hsl(0,0%,68%)" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">${net?'CLOUD':'LOCAL'}</text>`;
+  $('nodes').innerHTML=n;
+
+  // ----- active path for flow dots -----
+  if(srcId==='A'||srcId==='B'){ activePath=[P[srcId],P.C,P.OUT]; }
+  else activePath=[];
+
+  // ensure flow dots exist
+  const flow=$('flow');
+  if(flow.childNodes.length===0 && !reduceMotion){
+    for(let i=0;i<5;i++) flow.appendChild(el('circle',{r:3.2,fill:net?'hsl(119,99%,60%)':'hsl(41,95%,62%)'}));
+  }
+  flow.querySelectorAll('circle').forEach(c=>c.setAttribute('fill', net?'hsl(119,99%,62%)':'hsl(41,95%,62%)'));
+}
+
+/* flow animation */
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function plen(p){let L=0;for(let i=1;i<p.length;i++)L+=dist(p[i-1],p[i]);return L;}
+function along(p,d){for(let i=1;i<p.length;i++){const s=dist(p[i-1],p[i]);if(d<=s){const r=d/s;return{x:p[i-1].x+(p[i].x-p[i-1].x)*r,y:p[i-1].y+(p[i].y-p[i-1].y)*r};}d-=s;}return p[p.length-1];}
+let fd=0;
+function animate(){
+  const dots=$('flow').querySelectorAll('circle');
+  if(activePath.length>=2&&!reduceMotion){
+    const L=plen(activePath); fd=(fd+1.7)%L;
+    dots.forEach((c,i)=>{const p=along(activePath,(fd+L/dots.length*i)%L);c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.style.opacity=.95;});
+  } else dots.forEach(c=>c.style.opacity=0);
+  requestAnimationFrame(animate);
+}
+if(!reduceMotion) requestAnimationFrame(animate);
+
+/* ---------- charts ---------- */
+const mkChart=(ctx,sets,axes)=>new Chart(ctx,{type:'line',data:{labels:[],datasets:sets},
+  options:{responsive:true,animation:false,interaction:{intersect:false},
+    plugins:{legend:{labels:{color:'#cbd8e6',font:{family:'Sora'}}}},
+    scales:axes}});
+const gridc='hsl(0,0%,16%)', tickc='hsl(0,0%,55%)';
+const envChart=mkChart($('envChart').getContext('2d'),
+  [{label:'Temp °C',data:[],borderColor:'hsl(14,90%,62%)',backgroundColor:'hsl(14,90%,62%,.12)',tension:.35,pointRadius:0,yAxisID:'y'},
+   {label:'Humidity %',data:[],borderColor:'hsl(119,99%,52%)',backgroundColor:'hsl(119,99%,52%,.1)',tension:.35,pointRadius:0,yAxisID:'y1'}],
+  {x:{ticks:{color:tickc,maxTicksLimit:7},grid:{color:gridc}},
+   y:{position:'left',ticks:{color:'hsl(14,90%,62%)'},grid:{color:gridc}},
+   y1:{position:'right',ticks:{color:'hsl(119,80%,55%)'},grid:{drawOnChartArea:false}}});
+const vibChart=mkChart($('vibChart').getContext('2d'),
+  [{label:'Vibration',data:[],borderColor:'hsl(41,95%,58%)',backgroundColor:'hsl(41,95%,58%,.14)',tension:.3,pointRadius:0,fill:true}],
+  {x:{ticks:{color:tickc,maxTicksLimit:7},grid:{color:gridc}},y:{ticks:{color:tickc},grid:{color:gridc}}});
+const buf={labels:[],t:[],h:[],v:[]};
+function pushChart(d){
+  const sn=d.sensors||{};
+  buf.labels.push(new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+  buf.t.push(sn.haveEnv?Number(sn.tempC):null);
+  buf.h.push(sn.haveEnv?Number(sn.humidity):null);
+  buf.v.push(Number(sn.vibration||0));
+  ['labels','t','h','v'].forEach(k=>{if(buf[k].length>60)buf[k].shift();});
+  envChart.data.labels=buf.labels;envChart.data.datasets[0].data=buf.t;envChart.data.datasets[1].data=buf.h;envChart.update();
+  vibChart.data.labels=buf.labels;vibChart.data.datasets[0].data=buf.v;vibChart.update();
+}
+
+/* ---------- render everything ---------- */
+let prev={};
+function setChip(id,on,cls){const e=$(id);e.className='chip'+(on?(' '+cls):'');}
+function badge(v,onTxt,offTxt,onCls){return v?`<span class="badge ${onCls}">${onTxt}</span>`:`<span class="badge b-mut">${offTxt}</span>`;}
+
+function render(d){
+  if(!d) return;
+  const sn=d.sensors||{}, net=d.dashboardMode==='INTERNET', hp=d.clusterHealth||'--';
+
+  // hero stats
+  $('h_health').textContent=hp; $('h_health').className='val '+(hp==='OK'?'up':hp==='DEGRADED'?'wn':'down');
+  {const L=d.leader; $('h_leader').textContent=(L&&L.length===1&&/[ABC]/.test(L))?('Node '+L):(L||'—');}
+  $('h_src').textContent=sn.source||'--';
+  $('h_mode').textContent=net?'INTERNET':'LOCAL';$('h_mode').className='val sm '+(net?'up':'wn');
+  const cNode=(d.nodes||[]).find(n=>n.id==='C'); const up=cNode?cNode.uptimeS:0;
+  $('r_uptime').textContent='C · '+fmt(up);
+
+  // health FSM chips
+  setChip('st_ok', hp==='OK','on-ok'); setChip('st_deg',hp==='DEGRADED','on-wn'); setChip('st_crit',hp==='CRITICAL','on-bad');
+  setChip('md_net',net,'on-ok'); setChip('md_local',!net,'on-wn');
+  $('s_src').textContent=sn.source||'--';
+  $('s_vibval').innerHTML=sn.vibStale?'<span class="wn">last-known A</span>':'<span class="up">live</span>';
+  $('s_sta').innerHTML=d.staConnected?'<span class="dot ok"></span>connected':'<span class="dot bad"></span>disconnected';
+  $('s_staip').textContent=d.staConnected?(d.staIP||'--'):'—';
+  $('s_ch').textContent=d.wifiChannel ?? '--';
+
+  // sensor metrics
+  $('m_temp').textContent=sn.haveEnv?Number(sn.tempC).toFixed(1):'--';
+  $('m_hum').textContent=sn.haveEnv?Number(sn.humidity).toFixed(0):'--';
+  $('m_vib').textContent=Number(sn.vibration||0).toFixed(2);
+  $('m_vibstale').textContent=sn.vibStale?'last-known (A offline)':'';
+  $('m_tilt').textContent=Number(sn.tilt||0).toFixed(1);
+  $('m_light').textContent=sn.light||'--';
+  $('m_ldr').textContent=sn.ldrRaw ?? '--';
+  $('m_motion').innerHTML=badge(sn.motionAlert,'Alert','None','b-wn');
+  $('m_env').innerHTML=badge(sn.envAlert,'Alert','Normal','b-bad');
+
+  // links
+  const L={};(d.links||[]).forEach(l=>L[l.from+l.to]=l);
+  const lt=l=>l?(l.up?`<span class="dot ok"></span>UP · ${l.rssi} dBm`:'<span class="dot bad"></span>DOWN'):'--';
+  $('l_ac').innerHTML=lt(L['AC']); $('l_bc').innerHTML=lt(L['BC']); $('l_ab').innerHTML=lt(L['AB']);
+  $('l_out').innerHTML=(sn.sourceId==='A'||sn.sourceId==='B')?`<span class="dot ok"></span>${net?'cloud':'local'}`:'<span class="dot bad"></span>idle';
+
+  // node table
+  const tb=$('nodeTable');tb.innerHTML='';
+  (d.nodes||[]).forEach(nn=>{const tr=document.createElement('tr');
+    tr.innerHTML=`<td><b>${nn.id}</b></td><td>${nn.role||''}</td><td>${nn.state}</td>`+
+      `<td>${nn.alive?'<span class="dot ok"></span>yes':'<span class="dot bad"></span>no'}</td>`+
+      `<td>${nn.rssi} dBm</td><td>${fmt(nn.uptimeS)}</td>`;tb.appendChild(tr);});
+
+  // routing + charts + log
+  drawMesh(d);
+  pushChart(d);
+
+  if(prev.leader!=null&&d.leader!==prev.leader) addLog(`Leader changed: ${prev.leader} → ${d.leader}`,'l-wn');
+  if(prev.source!=null&&sn.source!==prev.source) addLog(`Sensor source: ${prev.source} → ${sn.source}`,'l-wn');
+  if(prev.mode!=null&&d.dashboardMode!==prev.mode) addLog(`Mode: ${prev.mode} → ${d.dashboardMode}`, net?'l-ok':'l-wn');
+  if(prev.health!=null&&hp!==prev.health) addLog(`Cluster health: ${prev.health} → ${hp}`, hp==='OK'?'l-ok':hp==='CRITICAL'?'l-bad':'l-wn');
+  if(!prev.env&&sn.envAlert) addLog('ENVIRONMENT ALERT — temp/humidity out of safe range','l-bad');
+  if(!prev.motion&&sn.motionAlert) addLog('MOTION / VIBRATION ALERT','l-wn');
+  prev={leader:d.leader,source:sn.source,mode:d.dashboardMode,health:hp,env:!!sn.envAlert,motion:!!sn.motionAlert};
+}
+
+function addLog(msg,cls){const b=$('logBox');const e=document.createElement('div');e.className=cls||'';
+  e.textContent=`[${new Date().toLocaleTimeString()}]  ${msg}`;b.prepend(e);while(b.children.length>120)b.removeChild(b.lastChild);}
+
+/* ============================================================
+   DEMO / SIMULATION ENGINE
+   ============================================================ */
+let simTimer=null, simOn=false, gotReal=false, tick=0;
+let sim={aDown:0, netDown:0};
+function setConn(txt,cls){const p=$('connPill');p.textContent=txt;p.className='pill '+cls;}
+
+function simStep(){
+  tick++;
+  // schedule failures
+  if(sim.aDown===0 && tick>6 && Math.random()<0.045) sim.aDown=8;     // A fails ~8 ticks
+  if(sim.netDown===0 && tick>4 && Math.random()<0.04) sim.netDown=6;  // internet drops ~6 ticks
+  const aAlive = sim.aDown===0; if(sim.aDown>0)sim.aDown--;
+  const net = sim.netDown===0; if(sim.netDown>0)sim.netDown--;
+
+  const temp = 30 + 3*Math.sin(tick/9) + (Math.random()*0.6-0.3) + (Math.random()<0.06?6:0);
+  const hum  = 56 + 6*Math.sin(tick/13) + (Math.random()*2-1);
+  const vib  = aAlive ? (0.03 + Math.random()*0.05 + (Math.random()<0.07?0.6:0)) : 0.0;
+  const tilt = aAlive ? (-4 + Math.random()*2) : 0;
+  const envAlert = temp>35 || hum>70;
+  const motion = aAlive && vib>0.4;
+
+  const leader = aAlive?'A':'B';
+  const srcId = aAlive?'A':'B';
+  const health = aAlive?'OK':'DEGRADED';
+  const upt=t=>3600*0+tick*5; // fake seconds
+  const rA=-44-Math.round(Math.random()*6), rB=-55-Math.round(Math.random()*6);
+
+  const d={
+    leader, clusterHealth:health, dashboardMode: net?'INTERNET':'LOCAL_FALLBACK',
+    staConnected:net, staIP:'10.77.148.103', wifiChannel:6,
+    sensors:{ source: aAlive?'A (LIVE)':'B (LIVE)', sourceId:srcId,
+      tempC:temp, humidity:hum, haveEnv:true, envAlert,
+      vibration: aAlive?vib: 0.18, vibStale: !aAlive,
+      tilt: aAlive?tilt: -3.4, light: temp>34?'BRIGHT':'NORMAL',
+      motionAlert:motion, ldrRaw: 1800+Math.round(Math.random()*400) },
+    nodes:[
+      {id:'A',role:'Sensor-Primary',state:aAlive?'ACTIVE':'DOWN',alive:aAlive,rssi:rA,uptimeS:aAlive?upt():0,seq:tick},
+      {id:'B',role:'HMI-Standby',state:aAlive?'STANDBY':'FAILOVER',alive:true,rssi:rB,uptimeS:upt(),seq:tick},
+      {id:'C',role:'Dashboard-Agg',state:'STANDBY',alive:true,rssi:-40,uptimeS:upt(),seq:tick}
+    ],
+    links:[
+      {from:'A',to:'B',up:aAlive,rssi:-58},
+      {from:'A',to:'C',up:aAlive,rssi:rA},
+      {from:'B',to:'C',up:true,rssi:rB}
+    ]
+  };
+  render(d);
+}
+function startSim(reason){ if(simOn)return; simOn=true; setConn('Demo data','demo');
+  addLog('DEMO MODE — simulated cluster ('+reason+')','l-wn'); tick=0; sim={aDown:0,netDown:0};
+  simStep(); simTimer=setInterval(simStep,1500); }
+function stopSim(){ if(!simOn)return; simOn=false; clearInterval(simTimer); simTimer=null; }
+
+$('demoBtn').addEventListener('click',()=>{
+  if(simOn){ stopSim(); setConn(gotReal?'Live':'Waiting','off'); addLog('Demo mode off','l-ok'); }
+  else { gotReal=false; startSim('manual'); }
+});
+
+
+/* ---------- offline / gateway-down state ---------- */
+function OFFLINE_STATE(){return {
+  leader:'—', clusterHealth:'OFFLINE', dashboardMode:'LOCAL_FALLBACK',
+  staConnected:false, staIP:'—', wifiChannel:'--',
+  sensors:{source:'NO CLOUD LINK', sourceId:'-', haveEnv:false, tempC:0, humidity:0,
+           vibration:0, vibStale:true, tilt:0, light:'--', motionAlert:false, envAlert:false, ldrRaw:'--'},
+  nodes:[{id:'A',role:'Sensor-Primary',state:'DOWN',alive:false,rssi:0,uptimeS:0},
+         {id:'B',role:'HMI-Standby',  state:'DOWN',alive:false,rssi:0,uptimeS:0},
+         {id:'C',role:'Dashboard-Agg',state:'DOWN',alive:false,rssi:0,uptimeS:0}],
+  links:[{from:'A',to:'B',up:false,rssi:0},{from:'A',to:'C',up:false,rssi:0},{from:'B',to:'C',up:false,rssi:0}]
+};}
+let offlineShown=false;
+function goOffline(){
+  if(simOn) return;
+  setConn('Offline · gateway down','off');
+  if(!offlineShown){ addLog('Gateway offline — no live data. Node C is likely in LOCAL_FALLBACK (hotspot off).','l-bad'); offlineShown=true; }
+  render(OFFLINE_STATE());
+}
+
+/* ============================================================
+   FIREBASE WIRING (falls back to demo if not configured)
+   ============================================================ */
+const configured = !firebaseConfig.databaseURL.includes('PASTE');
+if(configured){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    const db=firebase.database();
+    setConn('Connecting','off');
+    let lastData=0, staleT=null;
+    db.ref('live').on('value',s=>{
+      const d=s.val(); if(!d)return;
+      gotReal=true; offlineShown=false; if(simOn)stopSim();
+      setConn('Live','live'); lastData=Date.now();
+      clearTimeout(staleT); staleT=setTimeout(goOffline,9000);
+      render(d);
+    });
+    db.ref('.info/connected').on('value',ss=>{ if(!ss.val()&&!simOn) goOffline(); });
+    // if no real data within 5s, start demo so the page is never empty
+    setTimeout(()=>{ if(!gotReal) startSim('no data from Node C yet'); },5000);
+  }catch(e){ console.error(e); startSim('firebase error'); }
+} else {
+  startSim('no Firebase config');
+}
+</script>
+
+<script>
+/* ---------- interactive mesh background ---------- */
+(function(){
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const cv=document.getElementById('bg'); if(!cv) return;
+  const ctx=cv.getContext('2d');
+  const DPR=Math.min(window.devicePixelRatio||1,2);
+  let W=0,H=0,pts=[],ripples=[];
+  const mouse={x:-9999,y:-9999,on:false};
+
+  function resize(){
+    W=cv.width=Math.floor(innerWidth*DPR); H=cv.height=Math.floor(innerHeight*DPR);
+    cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
+    const target=Math.min(120, Math.max(40, Math.floor(innerWidth*innerHeight/14000)));
+    pts=[]; for(let i=0;i<target;i++){
+      pts.push({x:Math.random()*W,y:Math.random()*H,
+                vx:(Math.random()-.5)*0.12*DPR,vy:(Math.random()-.5)*0.12*DPR});
+    }
+  }
+  resize(); addEventListener('resize',resize);
+
+  addEventListener('mousemove',e=>{mouse.x=e.clientX*DPR;mouse.y=e.clientY*DPR;mouse.on=true;});
+  addEventListener('mouseout',()=>{mouse.on=false;mouse.x=mouse.y=-9999;});
+  addEventListener('touchmove',e=>{const t=e.touches[0];if(t){mouse.x=t.clientX*DPR;mouse.y=t.clientY*DPR;mouse.on=true;}},{passive:true});
+  function ripple(x,y){ if(ripples.length<6) ripples.push({x:x*DPR,y:y*DPR,r:0}); }
+  addEventListener('click',e=>ripple(e.clientX,e.clientY));
+  addEventListener('touchstart',e=>{const t=e.touches[0];if(t)ripple(t.clientX,t.clientY);},{passive:true});
+
+  const LINK=140*DPR, MR=180*DPR;
+  function draw(animated){
+    ctx.clearRect(0,0,W,H);
+
+    if(animated){
+      for(const p of pts){
+        if(mouse.on){const dx=p.x-mouse.x,dy=p.y-mouse.y,d=Math.hypot(dx,dy);
+          if(d<MR&&d>0.5){const f=(1-d/MR)*0.5;p.vx+=dx/d*f*0.45;p.vy+=dy/d*f*0.45;}}
+        p.x+=p.vx;p.y+=p.vy;p.vx*=0.97;p.vy*=0.97;
+        const sp=Math.hypot(p.vx,p.vy),mx=0.9*DPR; if(sp>mx){p.vx*=mx/sp;p.vy*=mx/sp;}
+        if(p.x<0)p.x+=W; else if(p.x>W)p.x-=W; if(p.y<0)p.y+=H; else if(p.y>H)p.y-=H;
+      }
+    }
+
+    // particle-to-particle links
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i];
+      for(let j=i+1;j<pts.length;j++){
+        const b=pts[j],dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;
+        if(d2<LINK*LINK){const o=(1-Math.sqrt(d2)/LINK);
+          ctx.strokeStyle='hsla(119,99%,46%,'+(o*0.16).toFixed(3)+')';ctx.lineWidth=DPR;
+          ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+      }
+    }
+    // links to cursor + nodes
+    for(const p of pts){
+      let near=0;
+      if(mouse.on){const d=Math.hypot(p.x-mouse.x,p.y-mouse.y);
+        if(d<MR){near=1-d/MR;
+          ctx.strokeStyle='hsla(119,99%,55%,'+(near*0.5).toFixed(3)+')';ctx.lineWidth=1.2*DPR;
+          ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(mouse.x,mouse.y);ctx.stroke();}}
+      ctx.fillStyle='hsla(119,99%,'+(46+near*22)+'%,'+(0.32+near*0.55).toFixed(3)+')';
+      ctx.beginPath();ctx.arc(p.x,p.y,(1.3+near*2)*DPR,0,6.2832);ctx.fill();
+    }
+    // click ripples
+    for(let i=ripples.length-1;i>=0;i--){const r=ripples[i];r.r+=2.2*DPR;
+      const o=1-r.r/(MR*1.4); if(o<=0){ripples.splice(i,1);continue;}
+      ctx.strokeStyle='hsla(119,99%,52%,'+(o*0.4).toFixed(3)+')';ctx.lineWidth=1.4*DPR;
+      ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,6.2832);ctx.stroke();}
+  }
+
+  if(reduce){ draw(false); }
+  else{ (function loop(){ draw(true); requestAnimationFrame(loop); })(); }
+})();
+</script>
+</body>
+</html>
